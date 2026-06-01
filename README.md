@@ -146,7 +146,7 @@ The project currently includes the backend setup, API planning, schema structure
 
 ## second COMMit
 
-# Uber Replica AI Agent Platform
+# Ride Fare optimizer 
 
 A mini Uber-inspired AI agent platform built with FastAPI.
 
