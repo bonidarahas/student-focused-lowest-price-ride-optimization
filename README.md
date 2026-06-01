@@ -140,3 +140,64 @@ The project currently includes the backend setup, API planning, schema structure
 * Add frontend interface
 * Add real ride API integration
 * Deploy the backend API
+
+
+
+
+## second COMMit
+
+# Uber Replica AI Agent Platform
+
+A mini Uber-inspired AI agent platform built with FastAPI.
+
+## Features Completed Till Milestone 5
+
+### Milestone 1: FastAPI + Planner Agent
+- Created FastAPI backend
+- Added `/chat` endpoint
+- Added Planner Agent
+- Added AI Gateway layer
+
+### Milestone 2: MCP-Style Tool Gateway
+- Added MCP-style gateway
+- Added calculator tool
+- Added permission checks for tool usage
+- Added `/mcp/invoke` endpoint
+
+### Milestone 3: Basic RAG Agent
+- Added RAG Agent
+- Added local text document search
+- Added student ride policy knowledge base
+
+### Milestone 4: Real RAG with ChromaDB
+- Added document loader
+- Added text splitter
+- Added SentenceTransformer embeddings
+- Added ChromaDB vector store
+- Added document indexing pipeline
+- Added `/rag/count` and `/rag/search` endpoints
+
+### Milestone 5: SQL Agent
+- Added SQLite database setup
+- Added drivers, rides, and payments tables
+- Added SQL Agent
+- Added safe predefined SQL query execution
+- Added `/sql/query` endpoint
+- Connected SQL route to Planner Agent
+
+## Tech Stack
+
+- Python
+- FastAPI
+- Pydantic
+- ChromaDB
+- Sentence Transformers
+- SQLite
+- Uvicorn
+
+## Run Locally
+
+Install dependencies:
+
+```bash
+pip install -r requirements.txt

@@ -3,6 +3,8 @@ import re
 from app.ai_gateway import AIGateway
 from app.mcp_gateway import MCPGateway
 from agents.rag_agent import RAGAgent
+from agents.sql_agent import SQLAgent
+
 
 
 
@@ -12,6 +14,8 @@ class PlannerAgent:
         self.ai_gateway = AIGateway()
         self.mcp_gateway = MCPGateway()
         self.rag_agent = RAGAgent()
+        self.sql_agent = SQLAgent()
+
 
 
     def handle_message(self, message: str) -> dict:
@@ -91,6 +95,20 @@ class PlannerAgent:
             "route": route,
             "steps": steps
         }
+        if route == "sql":
+            sql_result = self.sql_agent.answer_question(message)
+
+            steps.append({
+                "agent": "sql_agent",
+                "action": "executed_SQL_query",
+                "details": sql_result["sql"] if sql_result["sql"] else "no SQL query executed."
+
+            })
+            return{
+                "answer": sql_result["answer"],
+                "route": route,
+                "steps": steps
+            }
 
     def _choose_route(self, message: str) -> str:
         message_lower = message.lower()
@@ -109,6 +127,9 @@ class PlannerAgent:
             "student","discount","policy","cancel","cancellation","driver","match","lowest price", "premium ride"
 
         ]
+        sql_keywords = [
+            "revenue" ,"earnings", "earned", "driver earned" , "top drivers", "average fare", "student rides" , "how many students", "total fare", "rides database"
+        ]
 
         has_number = any(char.isdigit() for char in message)
 
@@ -119,6 +140,8 @@ class PlannerAgent:
             return "rag"
 
         return "general_answer"
+        if any(keyword in message_lower for keyword in sql_keywords):
+            return "sql"
 
     def _extract_math_expression(self, message: str) -> str:
         """

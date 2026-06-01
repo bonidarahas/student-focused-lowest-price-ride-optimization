@@ -30,4 +30,13 @@ class ToolInvokeResponse(BaseModel):
     result: Optional[Any] = None
 
 
+class RAGSearchRequest(BaseModel):
+    query: str
+    top_k : int=3 
+
+
+class SQLQueryRequest(BaseModel):
+    question:str
+
+
 

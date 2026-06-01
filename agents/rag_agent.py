@@ -1,52 +1,33 @@
-from pathlib import Path
+from rag.vector_store import VectorStore
 
 class RAGAgent:
+    def __init__(self):
+        self.vector_store= VectorStore()
 
-    """
-    Simple rag agent 
-    
-    need to be upgraded"""
+        def answer_question(self, question:str) -> dict:
+            results =self.vector_store.search(query=question, top_k =3)
 
-    def __init__(self , docs_folder: str = "data/docs"):
-        self.docs_folder = Path(docs_folder)
+            if not results:
+                return{
+                    "answer": "I couldnot find the info from the knowledge base",
+                    "sources": []
 
-    def answer_question(self, question:str) -> dict:
-        documents  = self._load_documents()
+                }
+            
+            context = "\n\n".join(
+                [result["text"] for result in results]
+            )
+            sources = list(
+                set([result["source"] for result in results])
 
-        if not documents:
+            )
+            answer = self._generate_answer(question,context)
+
             return{
-                "answer" : "i couldnot find any documents in the knowledge base",
-                "sources":[]
-
-            }
-        best_doc = self._search_documents(question,documents)
-
-        if best_doc is None:
-            return{
-
-                "answer": "i couldnot find any relevant information in the documents",
-                "sources":[]
-                
+                "answer": answer ,
+                "sources": sources
             }
 
-        answer = self._generate_answer(question, best_doc["text"])
-        return{
-            "answer": answer,
-            "sources": [best_doc["source"]]
-        }
-    
-    def _load_documents(self) -> list:
-        documents = []
-
-        for file_path in self.docs_folder.glob("+.txt"):
-            text = file_path.read_text(encoding= "utf-8")
-
-            documents.append({
-                "sources": file_path.name,
-                "text": text
-            })
-            return documents
-        
     def _generate_answer(self , question:str , context:str) -> str:
         question_lower = question.lower()
         context_lower = context.lower()

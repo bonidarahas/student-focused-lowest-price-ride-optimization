@@ -1,0 +1,11 @@
+Uber Replica Student Policy
+
+Students get a 15% discount on rides when they verify their student email.
+
+The system compares prices from nearby drivers and tries to assign the lowest available price to verified students.
+
+Ride cancellation is free within 2 minutes of booking. After 2 minutes, a cancellation fee may apply.
+
+Drivers are matched based on distance, availability, rating, and estimated pickup time.
+
+Premium rides do not qualify for student discounts.
