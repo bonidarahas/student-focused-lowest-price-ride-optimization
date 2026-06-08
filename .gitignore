@@ -1,9 +1,31 @@
-.venv/
-venv/
-env/
+# Python cache
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+
+# Virtual environment
+.uber/
+venv/
+.env/
 .env
-.DS_Store
-.idea/
+*.env
+
+# Chroma vector DB
+chroma_db/
+
+# SQLite database
+database/*.db
+
+# IDE
 .vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Large model/cache files
+.cache/
