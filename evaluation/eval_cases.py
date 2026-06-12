@@ -39,4 +39,9 @@ EVAL_CASES = [
         "question": "What is the average fare?",
         "expected_route": "sql"
     }
+    {
+        "id": 9,
+        "question": "Book me a ride from hudson park to 753 Hamilton street"
+        "expected_route": "ride-booking"
+    }
 ]

@@ -2,8 +2,11 @@ import re
 
 from app.ai_gateway import AIGateway
 from app.mcp_gateway import MCPGateway
+
 from agents.rag_agent import RAGAgent
 from agents.sql_agent import SQLAgent
+
+from services.ride_booking_service import RideBookingService
 
 
 class PlannerAgent:
@@ -12,6 +15,7 @@ class PlannerAgent:
         self.mcp_gateway = MCPGateway()
         self.rag_agent = RAGAgent()
         self.sql_agent = SQLAgent()
+        self.ride_booking_service = RideBookingService()
 
     def handle_message(self, message: str) -> dict:
         steps = []
@@ -94,6 +98,47 @@ class PlannerAgent:
                 "steps": steps
             }
 
+        if route == "ride_booking":
+            ride_details = self._extract_ride_details(message)
+
+            steps.append({
+                "agent": "planner_agent",
+                "action": "extracted_ride_details",
+                "details": (
+                    f"pickup: {ride_details['pickup_location']}, "
+                    f"dropoff: {ride_details['dropoff_location']}, "
+                    f"is_student: {ride_details['is_student']}"
+                )
+            })
+
+            booking_result = self.ride_booking_service.book_ride(
+                rider_name=ride_details["rider_name"],
+                pickup_location=ride_details["pickup_location"],
+                dropoff_location=ride_details["dropoff_location"],
+                is_student=ride_details["is_student"]
+            )
+
+            steps.append({
+                "agent": "ride_booking_service",
+                "action": "created_ride_booking",
+                "details": (
+                    f"booking_id: {booking_result['booking_id']}, "
+                    f"status: {booking_result['status']}"
+                )
+            })
+
+            return {
+                "answer": (
+                    f"Ride booked successfully. "
+                    f"Driver: {booking_result['driver_name']}. "
+                    f"Final price: ${booking_result['final_price']}. "
+                    f"Status: {booking_result['status']}. "
+                    f"Reason: {booking_result['reason']}"
+                ),
+                "route": route,
+                "steps": steps
+            }
+
         answer = self.ai_gateway.generate_response(message)
 
         steps.append({
@@ -119,6 +164,18 @@ class PlannerAgent:
             "*",
             "/",
             "%"
+        ]
+
+        ride_booking_keywords = [
+            "book ride",
+            "book me",
+            "ride from",
+            "student ride",
+            "pickup",
+            "dropoff",
+            "need a ride",
+            "get me a ride",
+            "schedule a ride"
         ]
 
         sql_keywords = [
@@ -166,6 +223,9 @@ class PlannerAgent:
         if has_number and any(keyword in message_lower for keyword in calculator_keywords):
             return "calculator"
 
+        if "ride" in message_lower and any(keyword in message_lower for keyword in ride_booking_keywords):
+            return "ride_booking"
+
         if any(keyword in message_lower for keyword in sql_keywords):
             return "sql"
 
@@ -179,3 +239,43 @@ class PlannerAgent:
         expression = "".join(allowed_chars).strip()
 
         return expression
+
+    def _extract_ride_details(self, message: str) -> dict:
+        """
+        Parses simple natural-language ride requests.
+
+        Supported examples:
+        - "Book me a student ride from Hamilton to Hudson"
+        - "Book ride from Newark Penn Station to NJIT"
+        - "I need a ride from Bridgeport Station to University of Bridgeport"
+        """
+
+        message_lower = message.lower()
+
+        is_student = any(
+            keyword in message_lower
+            for keyword in ["student", "college", "university"]
+        )
+
+        rider_name = "Boni"
+
+        pickup_location = "Unknown Pickup"
+        dropoff_location = "Unknown Dropoff"
+
+        if " from " in message_lower and " to " in message_lower:
+            try:
+                after_from_original = message.split(" from ", 1)[1]
+                pickup_original, dropoff_original = after_from_original.split(" to ", 1)
+
+                pickup_location = pickup_original.strip(" .,!?:;")
+                dropoff_location = dropoff_original.strip(" .,!?:;")
+            except Exception:
+                pickup_location = "Unknown Pickup"
+                dropoff_location = "Unknown Dropoff"
+
+        return {
+            "rider_name": rider_name,
+            "pickup_location": pickup_location,
+            "dropoff_location": dropoff_location,
+            "is_student": is_student
+        }
