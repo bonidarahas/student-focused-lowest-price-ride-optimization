@@ -371,3 +371,51 @@ def debug_route(message: str):
         "answer": result["answer"],
         "steps": result["steps"]
     }
+@app.get("/ride-notifications")
+def get_ride_notifications(limit: int = 50):
+    db_path = Path("database/uber_replica.db")
+
+    if not db_path.exists():
+        return {
+            "count": 0,
+            "notifications": []
+        }
+
+    with sqlite3.connect(db_path) as connection:
+        cursor = connection.cursor()
+
+        cursor.execute("""
+            SELECT
+                notification_id,
+                booking_id,
+                rider_name,
+                driver_name,
+                final_price,
+                status,
+                message,
+                created_at
+            FROM ride_notifications
+            ORDER BY notification_id DESC
+            LIMIT ?
+        """, (limit,))
+
+        rows = cursor.fetchall()
+
+    notifications = [
+        {
+            "notification_id": row[0],
+            "booking_id": row[1],
+            "rider_name": row[2],
+            "driver_name": row[3],
+            "final_price": row[4],
+            "status": row[5],
+            "message": row[6],
+            "created_at": row[7]
+        }
+        for row in rows
+    ]
+
+    return {
+        "count": len(notifications),
+        "notifications": notifications
+    }
