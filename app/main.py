@@ -18,6 +18,8 @@ from app.ride_schemas import (
     RideEstimateResponse,
     RideBookingRequest,
     RideBookingResponse,
+    RideStatusUpdateRequest,
+    RideStatusUpdateResponse
 )
 
 from agents.planner_agent import PlannerAgent
@@ -418,4 +420,94 @@ def get_ride_notifications(limit: int = 50):
     return {
         "count": len(notifications),
         "notifications": notifications
+    }
+@app.patch("/rides/{booking_id}/status",response_model=RideStatusUpdateResponse)
+def update_ride_status(
+    booking_id: int,
+    request:  RideStatusUpdateRequest
+):
+    result = ride_booking_service.update_booking_status(
+        booking_id = booking_id,
+        new_status = request.status
+    )
+    if not result ("succes"):
+        from fastapi import HTTPException
+        raise HTTPException(
+            status_code = 400,
+            detail = result["message"]
+        )
+    event_payload = {
+        "booking_id": result["booking_id"],
+        "rider_name": result["rider_name"],
+        "driver_name":result["driver_name"],
+        "previous_status":result["previous_status"],
+        "new_status": result["new_status"],
+        "message": result["message"]
+    }
+    event_bus.publish(
+        topic ="ride.status",
+        event_type = "ride_status_updated",
+        payload = event_payload
+    )
+    try: 
+        kafka_producer.publi8sh(
+            topic = "ride.status",
+            event_type = "ride_status_updated",
+            payload = event_payload
+        )
+        kafka_producer.flush()
+    except Exception as error:
+        print(f"kafka ride status publish failed:{error}")
+    return RideStatusUpdateResponse(**event_payload)
+
+
+@app.get("/rides/{booking_id}")
+def get_ride(booking_id:int):
+    booking = ride_booking_service.get_booking(booking_id)
+    if booking is None:
+        from fastapi import HTTPException
+        raise HTTPException(
+            status_code = 404,
+            detail = f"Booking {booking_id}was not found"
+        )
+    return booking
+@app.get("/ride-status-notifications")
+def get_ride_status_notifications(limit: int = 50):
+    db_path = Path("database/uber_replica.db")
+
+    with sqlite3.connect(db_path) as connection:
+        cursor = connection.cursor()
+
+        cursor.execute("""
+            SELECT
+                notification_id,
+                booking_id,
+                rider_name,
+                driver_name,
+                previous_status,
+                new_status,
+                message,
+                created_at
+            FROM ride_status_notifications
+            ORDER BY notification_id DESC
+            LIMIT ?
+        """, (limit,))
+
+        rows = cursor.fetchall()
+
+    return {
+        "count": len(rows),
+        "notifications": [
+            {
+                "notification_id": row[0],
+                "booking_id": row[1],
+                "rider_name": row[2],
+                "driver_name": row[3],
+                "previous_status": row[4],
+                "new_status": row[5],
+                "message": row[6],
+                "created_at": row[7]
+            }
+            for row in rows
+        ]
     }

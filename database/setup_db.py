@@ -1,104 +1,204 @@
 import sqlite3
-from pathlib import Path
+
+from services.pricing_service import PricingService
 
 
-DB_PATH = Path("database/uber_replica.db")
+def create_test_drivers(database_path) -> None:
+    with sqlite3.connect(database_path) as connection:
+        cursor = connection.cursor()
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS drivers (
+                driver_id INTEGER PRIMARY KEY,
+                name TEXT NOT NULL,
+                rating REAL NOT NULL,
+                city TEXT NOT NULL
+            )
+        """)
+
+        cursor.executemany("""
+            INSERT INTO drivers (
+                driver_id,
+                name,
+                rating,
+                city
+            )
+            VALUES (?, ?, ?, ?)
+        """, [
+            (1, "Sarah Patel", 4.9, "Hamilton"),
+            (2, "Alex Johnson", 4.8, "Hudson"),
+            (3, "David Kim", 4.7, "Bridgeport"),
+        ])
+
+        connection.commit()
 
 
-def create_database():
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+def create_pricing_service(tmp_path) -> PricingService:
+    database_path = tmp_path / "test_uber.db"
 
-    connection = sqlite3.connect(DB_PATH)
-    cursor = connection.cursor()
+    create_test_drivers(database_path)
 
-    cursor.execute("DROP TABLE IF EXISTS payments")
-    cursor.execute("DROP TABLE IF EXISTS rides")
-    cursor.execute("DROP TABLE IF EXISTS drivers")
-
-    cursor.execute("""
-        CREATE TABLE drivers (
-            driver_id INTEGER PRIMARY KEY,
-            name TEXT NOT NULL,
-            rating REAL NOT NULL,
-            city TEXT NOT NULL
-        )
-    """)
-
-    cursor.execute("""
-        CREATE TABLE rides (
-            ride_id INTEGER PRIMARY KEY,
-            rider_name TEXT NOT NULL,
-            driver_id INTEGER NOT NULL,
-            pickup_location TEXT NOT NULL,
-            dropoff_location TEXT NOT NULL,
-            fare REAL NOT NULL,
-            ride_date TEXT NOT NULL,
-            is_student INTEGER NOT NULL,
-            FOREIGN KEY (driver_id) REFERENCES drivers(driver_id)
-        )
-    """)
-
-    cursor.execute("""
-        CREATE TABLE payments (
-            payment_id INTEGER PRIMARY KEY,
-            ride_id INTEGER NOT NULL,
-            amount REAL NOT NULL,
-            payment_method TEXT NOT NULL,
-            status TEXT NOT NULL,
-            FOREIGN KEY (ride_id) REFERENCES rides(ride_id)
-        )
-    """)
-
-    drivers = [
-        (1, "Alex Johnson", 4.9, "Bridgeport"),
-        (2, "Maria Lopez", 4.7, "Newark"),
-        (3, "David Kim", 4.8, "Jersey City"),
-        (4, "Sarah Patel", 4.6, "New York")
-    ]
-
-    rides = [
-        (1, "Boni", 1, "University of Bridgeport", "Bridgeport Station", 12.50, "2026-05-01", 1),
-        (2, "John", 2, "Newark Penn Station", "NJIT", 18.00, "2026-05-02", 1),
-        (3, "Aisha", 3, "Jersey City", "Hoboken", 22.75, "2026-05-03", 0),
-        (4, "Mark", 1, "Bridgeport Mall", "University of Bridgeport", 15.20, "2026-05-04", 1),
-        (5, "Sophia", 4, "Times Square", "Brooklyn", 35.00, "2026-05-05", 0),
-        (6, "Daniel", 2, "NJIT", "Newark Airport", 28.40, "2026-05-06", 1),
-        (7, "Priya", 3, "Hoboken", "Jersey City", 16.90, "2026-05-07", 0),
-        (8, "Emma", 1, "Bridgeport Station", "Seaside Park", 24.30, "2026-05-08", 1)
-    ]
-
-    payments = [
-        (1, 1, 12.50, "card", "completed"),
-        (2, 2, 18.00, "card", "completed"),
-        (3, 3, 22.75, "paypal", "completed"),
-        (4, 4, 15.20, "card", "completed"),
-        (5, 5, 35.00, "apple_pay", "completed"),
-        (6, 6, 28.40, "card", "completed"),
-        (7, 7, 16.90, "cash", "pending"),
-        (8, 8, 24.30, "card", "completed")
-    ]
-
-    cursor.executemany(
-        "INSERT INTO drivers VALUES (?, ?, ?, ?)",
-        drivers
+    return PricingService(
+        db_path=str(database_path)
     )
 
-    cursor.executemany(
-        "INSERT INTO rides VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-        rides
+
+def test_student_discount_is_applied(tmp_path):
+    pricing_service = create_pricing_service(tmp_path)
+
+    result = pricing_service.estimate_prices(
+        pickup_location="Hamilton",
+        dropoff_location="Hudson",
+        is_student=True,
     )
 
-    cursor.executemany(
-        "INSERT INTO payments VALUES (?, ?, ?, ?, ?)",
-        payments
+    selected_option = result["selected_option"]
+
+    assert selected_option is not None
+    assert selected_option["discount_amount"] > 0
+    assert selected_option["final_price"] < selected_option["base_price"]
+
+
+def test_non_student_has_no_discount(tmp_path):
+    pricing_service = create_pricing_service(tmp_path)
+
+    result = pricing_service.estimate_prices(
+        pickup_location="Hamilton",
+        dropoff_location="Hudson",
+        is_student=False,
     )
 
-    connection.commit()
-    connection.close()
+    selected_option = result["selected_option"]
 
-    print("Database created successfully.")
-    print(f"Database path: {DB_PATH}")
+    assert selected_option is not None
+    assert selected_option["discount_amount"] == 0
+    assert selected_option["final_price"] == selected_option["base_price"]
 
 
-if __name__ == "__main__":
-    create_database()
+def test_same_route_returns_same_prices(tmp_path):
+    pricing_service = create_pricing_service(tmp_path)
+
+    first_result = pricing_service.estimate_prices(
+        pickup_location="Hamilton",
+        dropoff_location="Hudson",
+        is_student=True,
+    )
+
+    second_result = pricing_service.estimate_prices(
+        pickup_location="Hamilton",
+        dropoff_location="Hudson",
+        is_student=True,
+    )
+
+    assert first_result["all_options"] == second_result["all_options"]
+    assert first_result["selected_option"] == second_result["selected_option"]
+
+
+def test_lowest_price_is_selected(tmp_path):
+    pricing_service = create_pricing_service(tmp_path)
+
+    result = pricing_service.estimate_prices(
+        pickup_location="Bridgeport",
+        dropoff_location="New Haven",
+        is_student=True,
+    )
+
+    all_options = result["all_options"]
+    selected_option = result["selected_option"]
+
+    assert all_options
+    assert selected_option is not None
+
+    lowest_price = min(
+        option["final_price"]
+        for option in all_options
+    )
+
+    assert selected_option["final_price"] == lowest_price
+
+
+def test_price_options_have_required_fields(tmp_path):
+    pricing_service = create_pricing_service(tmp_path)
+
+    result = pricing_service.estimate_prices(
+        pickup_location="NJIT",
+        dropoff_location="Newark Airport",
+        is_student=True,
+    )
+
+    required_fields = {
+        "driver_id",
+        "driver_name",
+        "rating",
+        "estimated_pickup_minutes",
+        "base_price",
+        "discount_amount",
+        "final_price",
+    }
+
+    assert result["all_options"]
+
+    for option in result["all_options"]:
+        assert required_fields.issubset(option.keys())
+
+
+def test_student_price_is_not_negative(tmp_path):
+    pricing_service = create_pricing_service(tmp_path)
+
+    result = pricing_service.estimate_prices(
+        pickup_location="A",
+        dropoff_location="B",
+        is_student=True,
+    )
+
+    assert result["all_options"]
+
+    for option in result["all_options"]:
+        assert option["base_price"] >= 0
+        assert option["discount_amount"] >= 0
+        assert option["final_price"] >= 0
+
+
+def test_student_reason_mentions_discount(tmp_path):
+    pricing_service = create_pricing_service(tmp_path)
+
+    result = pricing_service.estimate_prices(
+        pickup_location="Hamilton",
+        dropoff_location="Hudson",
+        is_student=True,
+    )
+
+    assert "student" in result["reason"].lower()
+    assert "discount" in result["reason"].lower()
+
+
+def test_no_drivers_returns_empty_result(tmp_path):
+    database_path = tmp_path / "test_uber.db"
+
+    with sqlite3.connect(database_path) as connection:
+        cursor = connection.cursor()
+
+        cursor.execute("""
+            CREATE TABLE drivers (
+                driver_id INTEGER PRIMARY KEY,
+                name TEXT NOT NULL,
+                rating REAL NOT NULL,
+                city TEXT NOT NULL
+            )
+        """)
+
+        connection.commit()
+
+    pricing_service = PricingService(
+        db_path=str(database_path)
+    )
+
+    result = pricing_service.estimate_prices(
+        pickup_location="Hamilton",
+        dropoff_location="Hudson",
+        is_student=True,
+    )
+
+    assert result["selected_option"] is None
+    assert result["all_options"] == []
+    assert result["reason"] == "No drivers available."

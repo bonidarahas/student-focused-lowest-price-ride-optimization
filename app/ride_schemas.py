@@ -1,5 +1,6 @@
+from typing import List, Literal
+
 from pydantic import BaseModel
-from typing import List
 
 
 class RideEstimateRequest(BaseModel):
@@ -46,3 +47,22 @@ class RideBookingResponse(BaseModel):
     final_price: float
     status: str
     reason: str
+
+
+class RideStatusUpdateRequest(BaseModel):
+    status: Literal[
+        "confirmed",
+        "driver_arriving",
+        "in_progress",
+        "completed",
+        "cancelled",
+    ]
+
+
+class RideStatusUpdateResponse(BaseModel):
+    booking_id: int
+    rider_name: str
+    driver_name: str
+    previous_status: str
+    new_status: str
+    message: str

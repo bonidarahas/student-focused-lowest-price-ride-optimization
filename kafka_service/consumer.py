@@ -2,7 +2,7 @@ import json
 from confluent_kafka import Consumer,KafkaException
 
 class KafkaEventConsumer:
-    def __init__(self,bootstrap_servers:Str = "localhost:9092"):
+    def __init__(self,bootstrap_servers: str = "localhost:9092"):
         self.consumer = Consumer({
             "bootstrap.servers":bootstrap_servers,
             "group.id": "uber-replica-consumer",
